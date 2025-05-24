@@ -1,4 +1,8 @@
 <script>
+	import { tick } from 'svelte';
+	import { Chart, registerables } from 'chart.js';
+	Chart.register(...registerables);
+
 	let ticker = 'AAPL';
 	let start = '2020-01-01';
 	let end = '2024-12-31';
@@ -7,6 +11,8 @@
 	let country = 'US';
 	let result = null;
 	let loading = false;
+	let chartCanvas;
+	let chart;
 
 	async function fetchData() {
 		loading = true;
@@ -17,12 +23,61 @@
 			const res = await fetch(url);
 			if (!res.ok) throw new Error('API error');
 			result = await res.json();
+			console.log('API result:', result);
+
+			if (result?.monthly_data?.length) {
+				await tick();
+				drawChart(result.monthly_data);
+			}
 		} catch (e) {
+			console.error(e);
 			result = { error: 'Failed to fetch data. Please check inputs or try again later.' };
 		} finally {
 			loading = false;
 		}
 	}
+
+	function drawChart(data) {
+		console.log("Drawing chart with corrected keys:", data);
+
+		const labels = data.map(item => item.month);
+		const values = data.map(item => parseFloat(item.investment_value));
+
+		if (!labels.length || !values.length || values.some(isNaN)) {
+			console.warn("Chart data invalid:", { labels, values });
+			return;
+		}
+
+		if (chart) chart.destroy();
+
+		chart = new Chart(chartCanvas, {
+			type: 'line',
+			data: {
+				labels,
+				datasets: [{
+					label: `${ticker} Investment Value Over Time`,
+					data: values,
+					borderColor: 'royalblue',
+					backgroundColor: 'rgba(65, 105, 225, 0.2)',
+					fill: true,
+					tension: 0.3,
+				}]
+			},
+			options: {
+				responsive: true,
+				scales: {
+					x: {
+						title: { display: true, text: 'Month' }
+					},
+					y: {
+						title: { display: true, text: 'Investment Value ($)' },
+						beginAtZero: false
+					}
+				}
+			}
+		});
+	}
+
 </script>
 
 <style>
@@ -42,6 +97,11 @@
 		padding: 1em;
 		overflow: auto;
 	}
+	canvas {
+		margin-top: 2em;
+		min-height: 300px;
+		width: 100%;
+	}
 </style>
 
 <h1>Investment Performance Tracker</h1>
@@ -56,8 +116,11 @@
 	<button type="submit" disabled={loading}>{loading ? 'Loading...' : 'Get Performance'}</button>
 </form>
 
-{#if result}
-	<h2>Result</h2>
-	<h1>fuancaslkdfnsa;lkfda;ldslfkahsfd;alkshfd</h1>
-	<pre>{JSON.stringify(result, null, 2)}</pre>
+{#if result?.monthly_data}
+	<h2>Performance Chart</h2>
+	<canvas bind:this={chartCanvas} width="600" height="400"></canvas>
+{/if}
+
+{#if result?.error}
+	<p style="color: red">{result.error}</p>
 {/if}
