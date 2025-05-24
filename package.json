@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "homepage": "https://YOUR_USERNAME.github.io/investments-ui",
+  "homepage": "https://ciandoyle251.github.io/investments-ui",
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "start": "sirv public --no-clear",
-    "deploy": "npm run build && gh-pages -d public"
+    "start": "sirv docs --no-clear",
+    "deploy": "npm run build"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^24.0.0",
