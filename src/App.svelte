@@ -14,6 +14,10 @@
 	let chartCanvas;
 	let chart;
 
+	let avgAnnualNominalReturn = null;
+	let avgAnnualRealReturn = null;
+	let avgAnnualInflation = null;
+
 	const popularTickers = [
 		{ name: 'S&P 500', symbol: '^GSPC' },
 		{ name: 'NASDAQ 100', symbol: '^NDX' },
@@ -27,19 +31,59 @@
 		{ name: 'Apple Inc.', symbol: 'AAPL' }
 	];
 
+	function calculateAverageAnnualReturns(data, initialInvestment, monthlyContribution) {
+		const totalMonths = data.length;
+		const totalNominalCashInvested = initialInvestment + monthlyContribution * (totalMonths - 1);
+
+		// Calculate weighted average months invested
+		const sumMonthsInvestedForContributions = ((totalMonths - 1) * totalMonths) / 2;
+		const weightedMonthsInvested =
+			initialInvestment * totalMonths + monthlyContribution * sumMonthsInvestedForContributions;
+		const weightedAvgMonthsInvested = weightedMonthsInvested / totalNominalCashInvested;
+		const weightedAvgYearsInvested = weightedAvgMonthsInvested / 12;
+
+		const finalNominalValue = data[data.length - 1].nominal_value;
+		const finalRealValue = data[data.length - 1].real_value;
+
+		const avgAnnualNominalReturn = Math.pow(finalNominalValue / totalNominalCashInvested, 1 / weightedAvgYearsInvested) - 1;
+		const avgAnnualRealReturn = Math.pow(finalRealValue / totalNominalCashInvested, 1 / weightedAvgYearsInvested) - 1;
+
+		return {
+			avgAnnualNominalReturn: avgAnnualNominalReturn * 100,
+			avgAnnualRealReturn: avgAnnualRealReturn * 100,
+			weightedAvgYearsInvested
+		};
+	}
+
 	async function fetchData() {
 		loading = true;
 		result = null;
+		avgAnnualNominalReturn = null;
+		avgAnnualRealReturn = null;
+		avgAnnualInflation = null;
 
 		const url = `https://web-production-feab.up.railway.app/investment_performance?ticker=${ticker}&start=${start}&end=${end}&investment_amount=${investment_amount}&monthly_contribution=${monthly_contribution}&country=${country}`;
-		
+
 		try {
 			const res = await fetch(url);
 			if (!res.ok) throw new Error('API error');
 			result = await res.json();
 
 			if (result?.monthly_data?.length) {
-				await tick(); // wait for canvas to be rendered
+				// Calculate final nominal and real values per month for weighted return calculation
+				calculateMonthlyFinalValues(result.monthly_data);
+
+				const returns = calculateAverageAnnualReturns(
+					result.monthly_data,
+					result.investment_amount,
+					result.monthly_contribution
+				);
+
+				avgAnnualNominalReturn = returns.avgAnnualNominalReturn;
+				avgAnnualRealReturn = returns.avgAnnualRealReturn;
+				avgAnnualInflation = result.annualized_inflation_percent;
+
+				await tick();
 				drawChart(result.monthly_data);
 			}
 		} catch (e) {
@@ -49,33 +93,43 @@
 		}
 	}
 
-	function drawChart(data) {
-		const labels = data.map(item => item.month);
-		const nominalValues = [];
-		const realValues = [];
-		const cashValues = [];
-
+	function calculateMonthlyFinalValues(data) {
 		let nominalValue = result.investment_amount;
 		let realValue = result.investment_amount;
-		let cashValue = result.investment_amount;
 
-		data.forEach((item, i) => {
+		for (let i = 0; i < data.length; i++) {
 			if (i > 0) {
 				nominalValue += result.monthly_contribution;
 				realValue += result.monthly_contribution;
+			}
+			nominalValue *= (1 + data[i].nominal_return_percent / 100);
+			realValue *= (1 + data[i].real_return_percent / 100);
+
+			data[i].nominal_value = nominalValue;
+			data[i].real_value = realValue;
+		}
+	}
+
+	function drawChart(data) {
+		const labels = data.map(item => item.month);
+		const nominalValues = data.map(item => item.nominal_value.toFixed(2));
+		const realValues = data.map(item => item.real_value.toFixed(2));
+
+		let cashValue = result.investment_amount;
+		let nominalCash = result.investment_amount;
+		const cashValues = [];
+		const nominalCashValues = [];
+
+		data.forEach((item, i) => {
+			if (i > 0) {
 				cashValue += result.monthly_contribution;
+				nominalCash += result.monthly_contribution;
 			}
 
-			// Apply returns
-			nominalValue *= (1 + item.nominal_return_percent / 100);
-			realValue *= (1 + item.real_return_percent / 100);
+			cashValue *= 1 / (1 + item.inflation_rate_percent / 100);
 
-			// Adjust for inflation
-			cashValue *= (1 / (1 + item.inflation_rate_percent / 100));
-
-			nominalValues.push(nominalValue.toFixed(2));
-			realValues.push(realValue.toFixed(2));
 			cashValues.push(cashValue.toFixed(2));
+			nominalCashValues.push(nominalCash.toFixed(2));
 		});
 
 		if (chart) chart.destroy();
@@ -108,6 +162,15 @@
 						backgroundColor: 'rgba(255, 69, 0, 0.2)',
 						fill: false,
 						borderDash: [5, 5],
+						tension: 0.3
+					},
+					{
+						label: 'Nominal Cash (No Investment Growth)',
+						data: nominalCashValues,
+						borderColor: 'gray',
+						backgroundColor: 'rgba(128,128,128,0.2)',
+						fill: false,
+						borderDash: [3, 3],
 						tension: 0.3
 					}
 				]
@@ -162,6 +225,14 @@
 	p.error {
 		color: red;
 	}
+	.stats {
+		margin-bottom: 1em;
+	}
+	.stats strong {
+		font-size: 1.5em;
+		margin-right: 1.5em;
+		display: inline-block;
+	}
 </style>
 
 <h1>Investment Performance Tracker</h1>
@@ -190,6 +261,20 @@
 </form>
 
 {#if result?.monthly_data}
+	<div class="stats">
+		<strong>
+			Average Annual Nominal Return: {avgAnnualNominalReturn?.toFixed(2)}%
+		</strong>
+		<strong>
+			Average Annual Real Return: 
+			<span style="color: {avgAnnualRealReturn >= 0 ? 'green' : 'red'}">
+				{avgAnnualRealReturn?.toFixed(2)}%
+			</span>
+		</strong>
+		<strong>
+			Average Annual Inflation: {avgAnnualInflation?.toFixed(2)}%
+		</strong>
+	</div>
 	<h2>Nominal vs Real Value</h2>
 	<canvas bind:this={chartCanvas}></canvas>
 {/if}
