@@ -18,24 +18,48 @@
 	let avgAnnualRealReturn = null;
 	let avgAnnualInflation = null;
 
-	const popularTickers = [
-		{ name: 'S&P 500', symbol: '^GSPC' },
-		{ name: 'NASDAQ 100', symbol: '^NDX' },
-		{ name: 'Dow Jones', symbol: '^DJI' },
-		{ name: 'Russell 2000', symbol: '^RUT' },
-		{ name: 'FTSE 100', symbol: '^FTSE' },
-		{ name: 'DAX', symbol: '^GDAXI' },
-		{ name: 'CAC 40', symbol: '^FCHI' },
-		{ name: 'Nikkei 225', symbol: '^N225' },
-		{ name: 'Hang Seng', symbol: '^HSI' },
-		{ name: 'Apple Inc.', symbol: 'AAPL' }
+	const tickerCategories = [
+		{
+			label: 'Popular Indexes',
+			options: [
+				{ name: 'S&P 500', symbol: '^GSPC', description: 'Tracks 500 large US companies' },
+				{ name: 'NASDAQ 100', symbol: '^NDX', description: 'Focuses on top 100 tech-heavy US stocks' },
+				{ name: 'Dow Jones', symbol: '^DJI', description: '30 major US companies in all sectors' },
+				{ name: 'Russell 2000', symbol: '^RUT', description: 'Tracks 2000 small-cap US companies' },
+				{ name: 'FTSE 100', symbol: '^FTSE', description: 'Top 100 companies on the London Stock Exchange' },
+				{ name: 'DAX', symbol: '^GDAXI', description: 'Top 40 blue-chip German stocks' },
+				{ name: 'CAC 40', symbol: '^FCHI', description: 'Top 40 French companies on Euronext Paris' },
+				{ name: 'Nikkei 225', symbol: '^N225', description: 'Top 225 Japanese companies' },
+				{ name: 'Hang Seng', symbol: '^HSI', description: 'Major Hong Kong-listed companies' }
+			]
+		},
+		{
+			label: 'Commodities',
+			options: [
+				{ name: 'Gold', symbol: 'GC=F', description: 'Gold futures, a hedge against inflation and crisis' },
+				{ name: 'Silver', symbol: 'SI=F', description: 'Silver futures, industrial and precious metal' },
+				{ name: 'Crude Oil (WTI)', symbol: 'CL=F', description: 'US West Texas Intermediate oil futures' },
+				{ name: 'Brent Oil', symbol: 'BZ=F', description: 'Global benchmark for crude oil' },
+				{ name: 'Natural Gas', symbol: 'NG=F', description: 'Natural gas futures, seasonal and volatile' },
+				{ name: 'Copper', symbol: 'HG=F', description: 'Often used as an economic health indicator' }
+			]
+		},
+		{
+			label: 'REITs',
+			options: [
+				{ name: 'Vanguard Real Estate ETF', symbol: 'VNQ', description: 'Tracks US real estate investment trusts' },
+				{ name: 'Schwab U.S. REIT ETF', symbol: 'SCHH', description: 'Diversified exposure to US REITs' },
+				{ name: 'iShares Global REIT ETF', symbol: 'REET', description: 'Exposure to global real estate companies' },
+				{ name: 'Realty Income Corporation', symbol: 'O', description: 'Monthly dividend REIT focused on retail' },
+				{ name: 'Public Storage', symbol: 'PSA', description: 'Leading self-storage REIT in the US' }
+			]
+		}
 	];
 
 	function calculateAverageAnnualReturns(data, initialInvestment, monthlyContribution) {
 		const totalMonths = data.length;
 		const totalNominalCashInvested = initialInvestment + monthlyContribution * (totalMonths - 1);
 
-		// Calculate weighted average months invested
 		const sumMonthsInvestedForContributions = ((totalMonths - 1) * totalMonths) / 2;
 		const weightedMonthsInvested =
 			initialInvestment * totalMonths + monthlyContribution * sumMonthsInvestedForContributions;
@@ -70,7 +94,6 @@
 			result = await res.json();
 
 			if (result?.monthly_data?.length) {
-				// Calculate final nominal and real values per month for weighted return calculation
 				calculateMonthlyFinalValues(result.monthly_data);
 
 				const returns = calculateAverageAnnualReturns(
@@ -249,11 +272,17 @@
 			<button type="submit" disabled={loading}>{loading ? 'Loading...' : 'Get Performance'}</button>
 		</div>
 		<div class="dropdown">
-			<label>Popular Indexes:</label>
+			<label>Popular Assets:</label>
 			<select on:change={(e) => ticker = e.target.value}>
-				<option value="">-- Choose an index --</option>
-				{#each popularTickers as index}
-					<option value={index.symbol}>{index.name}</option>
+				<option value="">-- Choose an asset --</option>
+				{#each tickerCategories as category}
+					<optgroup label={category.label}>
+						{#each category.options as option}
+							<option value={option.symbol} title={option.description}>
+								{option.name}
+							</option>
+						{/each}
+					</optgroup>
 				{/each}
 			</select>
 		</div>
